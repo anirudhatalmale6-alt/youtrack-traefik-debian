@@ -26,7 +26,7 @@ Components actually run:
 
 | Component | Version |
 |---|---|
-| Traefik | 3.3.7 |
+| Traefik | 3.3.7 for the first run below; the shipped stacks are pinned to and re‑verified on **v3.7.9** (see §1a) |
 | YouTrack | 2026.2.17765 (official `jetbrains/youtrack` image) |
 | Pebble (test ACME CA) | latest |
 
@@ -54,6 +54,46 @@ notAfter =Oct 26 15:48:43 2026 GMT   (90-day LE-style validity)
 X509v3 Subject Alternative Name: critical
     DNS:http.yt.test
 ```
+
+### 1a. HTTP‑01 re‑verified on the shipped `http-challenge/` stack (Traefik v3.7.9)
+
+The exact files in [`http-challenge/`](../http-challenge/) were run as‑shipped on
+**Traefik v3.7.9** (only the `caServer` pointed at the local Pebble test CA), to
+confirm anyone cloning the repo is good to go. Pebble fetched the token over
+plain HTTP on port 80 and marked the challenge valid:
+
+```
+# Pebble log
+Attempting to validate w/ HTTP: http://http.yt.test:80/.well-known/acme-challenge/8Onbi_QtCcgAYvioZVZ1onyENGaLm00JSGUXnxJxg7k
+authz ... set VALID by completed challenge
+# Traefik
+Validations succeeded; requesting certificates.  domains=http.yt.test
+Server responded with a certificate.            domains=http.yt.test
+```
+
+Crucially, the `:80` → `:443` redirect and the ACME challenge coexist correctly —
+the common HTTP‑01 pitfall. Verified against the running stack:
+
+```
+# 1) ordinary http is redirected to https ...
+$ curl -I http://http.yt.test/
+HTTP/1.1 308 Permanent Redirect
+Location: https://http.yt.test/
+
+# 2) ... but the ACME challenge path is served directly on :80, NOT redirected
+#    (404 from the ACME handler here == a real token would be returned, not bounced to https)
+$ curl -I http://http.yt.test/.well-known/acme-challenge/test-token
+HTTP/1.1 404 Not Found          # <-- NOT a 308 redirect: the challenge survives
+
+# 3) HTTPS then serves the issued cert, proxies to YouTrack, applies the headers
+$ curl -I https://http.yt.test/
+HTTP/2 200
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+x-frame-options: SAMEORIGIN
+```
+
+So the `http-challenge/` stack issues a certificate, redirects plain HTTP, and
+keeps the challenge path working — all on the shipped configuration.
 
 ## 2. DNS‑01 — certificate issued
 
