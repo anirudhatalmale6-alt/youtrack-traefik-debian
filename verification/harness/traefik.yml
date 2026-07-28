@@ -1,0 +1,56 @@
+# Traefik v3 static config — TEST HARNESS (Pebble stands in for Let's Encrypt).
+# Mirrors the delivered stacks: same entrypoints, redirect, timeouts, and BOTH
+# ACME challenge types (http-01 + dns-01), just pointed at the local test CA.
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+  websecure:
+    address: ":443"
+    http:
+      tls: {}
+    transport:
+      respondingTimeouts:
+        readTimeout: 0
+        idleTimeout: 0
+
+providers:
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+certificatesResolvers:
+
+  # ---- HTTP-01 (proves http-challenge/ stack) ----
+  le-http:
+    acme:
+      email: admin@example.com
+      storage: /acme/http.json
+      caServer: https://localhost:14000/dir
+      httpChallenge:
+        entryPoint: web
+
+  # ---- DNS-01 (proves dns-challenge/ stack; exec hook stands in for namecheap) ----
+  le-dns:
+    acme:
+      email: admin@example.com
+      storage: /acme/dns.json
+      caServer: https://localhost:14000/dir
+      dnsChallenge:
+        provider: exec
+        resolvers:
+          - "127.0.0.1:8053"
+        propagation:
+          delayBeforeChecks: 0
+          disableChecks: true
+
+log:
+  level: INFO
+api:
+  dashboard: false

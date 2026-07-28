@@ -1,0 +1,47 @@
+# Dynamic config for the test harness: routers + the YouTrack service + the
+# exact same headers middleware from the delivered stacks.
+
+http:
+  routers:
+    # HTTP-01 domain
+    youtrack-http:
+      rule: "Host(`http.yt.test`)"
+      entryPoints: [websecure]
+      service: youtrack
+      middlewares: [youtrack-headers]
+      tls:
+        certResolver: le-http
+
+    # DNS-01 domain
+    youtrack-dns:
+      rule: "Host(`dns.yt.test`)"
+      entryPoints: [websecure]
+      service: youtrack
+      middlewares: [youtrack-headers]
+      tls:
+        certResolver: le-dns
+
+  services:
+    youtrack:
+      loadBalancer:
+        passHostHeader: true
+        servers:
+          - url: "http://127.0.0.1:8080"
+
+  middlewares:
+    youtrack-headers:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Scheme: "https"
+          X-Forwarded-Proto: "https"
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        customResponseHeaders:
+          X-Frame-Options: "SAMEORIGIN"
+
+tls:
+  options:
+    default:
+      minVersion: VersionTLS12
+      sniStrict: true

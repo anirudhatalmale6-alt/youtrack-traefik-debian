@@ -12,6 +12,11 @@ certificates issued two different ways:
 Both setups are provided as self‑contained `docker compose` stacks so you can
 stand the whole thing up with a single command.
 
+> **This has been proven end‑to‑end, not just written.** Both challenge types
+> were run until real certificates were issued and YouTrack loaded over HTTPS
+> through Traefik — see [`verification/VERIFICATION.md`](verification/VERIFICATION.md)
+> for the logs, certificate details, and a screenshot.
+
 ```
 youtrack-traefik-guide/
 ├── dns-challenge/          # Stack #1 — Let's Encrypt via DNS-01 (Namecheap)
