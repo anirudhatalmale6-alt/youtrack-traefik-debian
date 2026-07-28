@@ -33,11 +33,16 @@ services:
     container_name: youtrack
     restart: unless-stopped
     # Port intentionally NOT published — Traefik reaches youtrack:8080 internally.
+    #
+    # Data is bind-mounted to host directories under /opt/youtrack. Create them
+    # ONCE before first start and give them to YouTrack's uid (13001):
+    #   mkdir -p /opt/youtrack/{data,conf,logs,backups}
+    #   chown -R 13001:13001 /opt/youtrack/{data,conf,logs,backups}
     volumes:
-      - youtrack-data:/opt/youtrack/data
-      - youtrack-conf:/opt/youtrack/conf
-      - youtrack-logs:/opt/youtrack/logs
-      - youtrack-backups:/opt/youtrack/backups
+      - /opt/youtrack/data:/opt/youtrack/data
+      - /opt/youtrack/conf:/opt/youtrack/conf
+      - /opt/youtrack/logs:/opt/youtrack/logs
+      - /opt/youtrack/backups:/opt/youtrack/backups
     networks:
       - web
     # No Traefik labels needed: the router and service pointing at this container
@@ -49,8 +54,6 @@ networks:
     name: web
 
 volumes:
-  traefik-acme:
-  youtrack-data:
-  youtrack-conf:
-  youtrack-logs:
-  youtrack-backups:
+  traefik-acme:          # acme.json (issued certificates) stays a Docker volume
+  # YouTrack data uses host bind mounts (see the youtrack service above), so no
+  # named volumes are declared for it.

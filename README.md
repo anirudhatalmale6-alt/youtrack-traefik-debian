@@ -172,19 +172,29 @@ Key facts baked into the compose files:
   <https://hub.docker.com/r/jetbrains/youtrack/tags>).
 * YouTrack listens on **port 8080 inside the container**. We do **not** publish
   it to the host — only Traefik talks to it, over the internal docker network.
-* Four persistent volumes are mounted so upgrades and restarts never lose data:
+* Four persistent directories are bind‑mounted from the host so the data is
+  visible on the machine, easy to back up, and never lost on restart/upgrade:
 
-  | Container path | Purpose |
-  |---|---|
-  | `/opt/youtrack/data` | database & attachments |
-  | `/opt/youtrack/conf` | configuration (incl. base‑url) |
-  | `/opt/youtrack/logs` | logs |
-  | `/opt/youtrack/backups` | backups |
+  | Host directory | Container path | Purpose |
+  |---|---|---|
+  | `/opt/youtrack/data` | `/opt/youtrack/data` | database & attachments |
+  | `/opt/youtrack/conf` | `/opt/youtrack/conf` | configuration (incl. base‑url) |
+  | `/opt/youtrack/logs` | `/opt/youtrack/logs` | logs |
+  | `/opt/youtrack/backups` | `/opt/youtrack/backups` | backups |
 
-The official image already runs as the dedicated `13001` user, so when Docker
-manages the named volumes the permissions are handled for you. (If you switch
-to bind‑mounted host directories instead, create them and
-`chown -R 13001:13001` them first, exactly as the JetBrains docs show.)
+The official image runs as the dedicated `13001` user, so **create these
+directories once and hand them to that user before the first start**:
+
+```bash
+mkdir -p /opt/youtrack/{data,conf,logs,backups}
+chown -R 13001:13001 /opt/youtrack/{data,conf,logs,backups}
+```
+
+(Prefer Docker‑managed named volumes instead? Swap each `/opt/youtrack/X:/opt/youtrack/X`
+line in the compose file for a named volume like `youtrack-X:/opt/youtrack/X` and
+declare them under the bottom `volumes:` key. Data still persists either way;
+host bind mounts just keep it visible on the machine. Note that YouTrack prints
+a harmless "non‑anonymous volume" warning with named volumes — bind mounts avoid it.)
 
 Choose **one** of the two stacks (`dns-challenge/` or `http-challenge/`) — do
 not run both at once, since they both bind ports 80/443.
