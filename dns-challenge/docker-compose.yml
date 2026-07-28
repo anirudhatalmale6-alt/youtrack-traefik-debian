@@ -11,7 +11,7 @@ services:
   #  Traefik — reverse proxy + ACME (DNS-01 / Namecheap) certificate resolver
   # ---------------------------------------------------------------------------
   traefik:
-    image: traefik:v3.3
+    image: traefik:v3.7.9
     container_name: traefik
     restart: unless-stopped
     # Namecheap credentials + tuning are injected as env vars for the ACME

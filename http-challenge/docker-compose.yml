@@ -11,7 +11,7 @@ services:
   #  Traefik — reverse proxy + ACME (HTTP-01) certificate resolver
   # ---------------------------------------------------------------------------
   traefik:
-    image: traefik:v3.3
+    image: traefik:v3.7.9
     container_name: traefik
     restart: unless-stopped
     ports:
