@@ -1,0 +1,5 @@
+# Never commit secrets or issued certificates
+.env
+**/acme/
+acme.json
+**/acme.json
