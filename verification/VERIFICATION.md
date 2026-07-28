@@ -4,6 +4,10 @@ This guide is not theoretical. I stood the whole stack up on my own test server
 and drove the full certificate‑issuance flow for **both** challenge types until
 real certificates were issued and YouTrack loaded over HTTPS through Traefik.
 
+> **Update:** this has since also been proven on a **real domain** against the
+> **real Namecheap API and real Let's Encrypt** (a genuine trusted certificate for
+> `youtrack.ocogo.space`). See [`LIVE-LETSENCRYPT.md`](LIVE-LETSENCRYPT.md).
+
 ## How the certificate flow was proven without a public domain
 
 To exercise the real ACME protocol without owning a public domain, I ran the
