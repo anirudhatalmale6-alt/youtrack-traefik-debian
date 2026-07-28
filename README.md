@@ -23,12 +23,14 @@ youtrack-traefik-guide/
 │   ├── docker-compose.yml
 │   ├── traefik.yml         # Traefik static config
 │   ├── dynamic/
+│   │   ├── youtrack.yml    # router + service (set your hostname here)
 │   │   └── middlewares.yml # headers / HSTS / TLS options
 │   └── .env.example
 └── http-challenge/         # Stack #2 — Let's Encrypt via HTTP-01
     ├── docker-compose.yml
     ├── traefik.yml
     ├── dynamic/
+    │   ├── youtrack.yml    # router + service (set your hostname here)
     │   └── middlewares.yml
     └── .env.example
 ```
@@ -37,6 +39,7 @@ youtrack-traefik-guide/
 
 ## Table of contents
 
+- [Quick start for beginners (DNS‑01, copy‑paste)](#quick-start-for-beginners-dns01-copy-paste) — start here if you just want it running
 1. [How it fits together](#1-how-it-fits-together)
 2. [Prerequisites](#2-prerequisites)
 3. [Step 1 — Prepare the Debian server](#3-step-1--prepare-the-debian-server)
@@ -51,6 +54,111 @@ youtrack-traefik-guide/
 12. [Certificate renewal](#12-certificate-renewal)
 13. [Troubleshooting](#13-troubleshooting)
 14. [DNS‑01 vs HTTP‑01 — which should I use?](#14-dns-01-vs-http-01--which-should-i-use)
+
+---
+
+## Quick start for beginners (DNS‑01, copy‑paste)
+
+New to Linux and Docker? This is the whole thing in order. Run each numbered
+block on your Debian server as `root`, one at a time, and check it worked before
+moving on. This is the **Namecheap DNS‑01** path (the HTTP‑01 path is section 9).
+
+> **Editing files:** some steps open `nano`, a simple editor. After you change
+> the text, save with **Ctrl+O** then **Enter**, and exit with **Ctrl+X**.
+
+**1. Install Docker and git**
+
+```bash
+curl -fsSL https://get.docker.com | sh
+apt-get install -y git
+```
+
+**2. Download these files** (this is the `cd /opt` + `git clone` step)
+
+```bash
+cd /opt
+git clone https://github.com/anirudhatalmale6-alt/youtrack-traefik-debian.git
+cd youtrack-traefik-debian/dns-challenge
+```
+
+**3. Create YouTrack's data folders** (owned by YouTrack's user, id `13001`)
+
+```bash
+mkdir -p /opt/youtrack/{data,conf,logs,backups}
+chown -R 13001:13001 /opt/youtrack/{data,conf,logs,backups}
+```
+
+**4. Prepare Namecheap** (in the Namecheap website, one time)
+
+* Profile → Tools → **Namecheap API Access**: switch **API Access ON**, then add
+  this server's public IP to the **whitelist**. Find the IP with:
+  ```bash
+  curl -4 https://api.ipify.org ; echo
+  ```
+* Domain List → your domain → **Advanced DNS**: add an **A record**, Host =
+  `youtrack`, Value = this server's IP. Make sure the domain uses **BasicDNS**.
+
+**5. Enter your Namecheap API details**
+
+```bash
+cp .env.example .env
+nano .env          # set NAMECHEAP_API_USER and NAMECHEAP_API_KEY
+```
+
+**6. Set your hostname**
+
+```bash
+nano dynamic/youtrack.yml
+```
+Find the `rule:` line and put your hostname between the backticks:
+```yaml
+      rule: "Host(`youtrack.mydomain.com`)"     # was youtrack.example.com
+```
+
+**7. Set your email** (Let's Encrypt uses it for expiry reminders)
+
+```bash
+nano traefik.yml   # change  email: "admin@example.com"  to your real email
+```
+
+**8. Tell YouTrack its public address** (use your hostname)
+
+```bash
+docker compose run --rm --no-deps youtrack \
+  configure --base-url=https://youtrack.mydomain.com
+```
+
+**9. Start it and watch the certificate arrive**
+
+```bash
+docker compose up -d
+docker compose logs -f traefik
+```
+Look for `Server responded with a certificate`. Press **Ctrl+C** to stop watching
+(the server keeps running). This first run uses Let's Encrypt **staging**, so your
+browser will show a certificate warning — that's expected and correct.
+
+**10. Switch to the real, trusted certificate**
+
+```bash
+nano traefik.yml
+```
+Comment out the staging line and uncomment the production line so they read:
+```yaml
+      # caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+      caServer: https://acme-v02.api.letsencrypt.org/directory
+```
+Then throw away the test certificate and restart:
+```bash
+docker compose down
+docker volume rm dns-challenge_traefik-acme
+docker compose up -d
+docker compose logs -f traefik
+```
+
+Now open `https://youtrack.mydomain.com` — you should get a valid padlock and
+YouTrack's setup wizard. That's it. The sections below explain each step in
+detail and cover the HTTP‑01 alternative.
 
 ---
 
@@ -154,6 +262,22 @@ docker compose version
 sudo usermod -aG docker "$USER"
 newgrp docker
 ```
+
+---
+
+## Get the project files (git clone)
+
+Download this repository onto the server and move into it:
+
+```bash
+cd /opt
+git clone https://github.com/anirudhatalmale6-alt/youtrack-traefik-debian.git
+cd youtrack-traefik-debian
+```
+
+Everything from here happens inside that folder. When you reach the TLS step,
+pick **one** stack — `dns-challenge/` or `http-challenge/` — and `cd` into it,
+for example `cd /opt/youtrack-traefik-debian/dns-challenge`.
 
 ---
 
