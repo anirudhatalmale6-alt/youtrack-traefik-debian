@@ -32,6 +32,10 @@ services:
     image: jetbrains/youtrack:${YOUTRACK_VERSION}
     container_name: youtrack
     restart: unless-stopped
+    # Give YouTrack up to 60s to shut down cleanly on `docker compose down/stop`
+    # (the default is only 10s). This matches JetBrains' `docker stop -t 60`
+    # recommendation so the embedded database flushes properly.
+    stop_grace_period: 60s
     # Port intentionally NOT published — Traefik reaches youtrack:8080 internally.
     #
     # Data is bind-mounted to host directories under /opt/youtrack. Create them

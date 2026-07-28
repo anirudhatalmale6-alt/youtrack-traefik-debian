@@ -601,6 +601,25 @@ start again (this re‑issues immediately).
 
 ---
 
+## Stopping and starting YouTrack (graceful shutdown)
+
+YouTrack needs a little time to shut down cleanly (it flushes its embedded
+database). JetBrains recommend allowing **60 seconds**, e.g.
+`docker stop -t 60 <container>`. Docker's default is only 10 seconds, so these
+stacks set **`stop_grace_period: 60s`** on the `youtrack` service — that means
+`docker compose down`, `docker compose stop` and `docker compose restart` all
+give YouTrack the full 60 seconds to stop cleanly before it is forced. You don't
+need to pass `-t 60` yourself; the compose file handles it.
+
+```bash
+docker compose stop      # stop (waits up to 60s for YouTrack), keeps containers
+docker compose start     # start again
+docker compose down      # stop (waits up to 60s) and remove containers
+docker compose up -d     # (re)create and start
+```
+
+---
+
 ## 13. Troubleshooting
 
 | Symptom | Likely cause & fix |
