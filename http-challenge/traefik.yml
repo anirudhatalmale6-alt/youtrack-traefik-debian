@@ -1,0 +1,54 @@
+# =============================================================================
+#  Traefik v3 static configuration  —  HTTP-01 certificate resolver
+# =============================================================================
+
+# ---- Entry points ----------------------------------------------------------
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      # Redirect ordinary http traffic to https. Traefik still serves the ACME
+      # HTTP-01 challenge on :80 with higher priority, so this redirect does NOT
+      # break certificate issuance/renewal.
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+  websecure:
+    address: ":443"
+    http:
+      tls: {}
+    transport:
+      respondingTimeouts:
+        readTimeout: 0          # keep long-lived SSE (live updates) open
+        idleTimeout: 0
+
+# ---- Providers -------------------------------------------------------------
+providers:
+  docker:
+    exposedByDefault: false
+    network: web
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+# ---- Certificate resolver: Let's Encrypt via HTTP-01 -----------------------
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: "admin@example.com"          # <-- change to a real address
+      storage: /etc/traefik/acme/acme.json
+      # Test against STAGING first, then switch to production.
+      caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+      # PRODUCTION endpoint (uncomment once staging works):
+      # caServer: https://acme-v02.api.letsencrypt.org/directory
+      httpChallenge:
+        entryPoint: web        # the :80 entrypoint Let's Encrypt will call
+
+# ---- Logging / dashboard (optional) ----------------------------------------
+log:
+  level: INFO
+api:
+  dashboard: true
+  insecure: false

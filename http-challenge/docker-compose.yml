@@ -1,0 +1,68 @@
+# =============================================================================
+#  YouTrack + Traefik v3  —  Let's Encrypt via HTTP-01 challenge
+# =============================================================================
+#  Bring the stack up with:  docker compose up -d
+#  Requires: port 80 reachable from the public internet (Let's Encrypt hits it).
+# =============================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  #  Traefik — reverse proxy + ACME (HTTP-01) certificate resolver
+  # ---------------------------------------------------------------------------
+  traefik:
+    image: traefik:v3.3
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"       # REQUIRED for HTTP-01: Let's Encrypt fetches the token here
+      - "443:443"
+    volumes:
+      - ./traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./dynamic:/etc/traefik/dynamic:ro
+      - traefik-acme:/etc/traefik/acme          # persists acme.json (the certs)
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - web
+
+  # ---------------------------------------------------------------------------
+  #  YouTrack — JetBrains official image, reached by Traefik on the web network
+  # ---------------------------------------------------------------------------
+  youtrack:
+    image: jetbrains/youtrack:${YOUTRACK_VERSION}
+    container_name: youtrack
+    restart: unless-stopped
+    # Port intentionally NOT published — Traefik reaches youtrack:8080 internally.
+    volumes:
+      - youtrack-data:/opt/youtrack/data
+      - youtrack-conf:/opt/youtrack/conf
+      - youtrack-logs:/opt/youtrack/logs
+      - youtrack-backups:/opt/youtrack/backups
+    networks:
+      - web
+    labels:
+      - "traefik.enable=true"
+
+      # ---- Router: HTTPS on the websecure entrypoint ----
+      - "traefik.http.routers.youtrack.rule=Host(`${YOUTRACK_DOMAIN}`)"
+      - "traefik.http.routers.youtrack.entrypoints=websecure"
+      - "traefik.http.routers.youtrack.tls=true"
+      - "traefik.http.routers.youtrack.tls.certresolver=letsencrypt"
+
+      # ---- Middlewares (defined in ./dynamic/middlewares.yml) ----
+      - "traefik.http.routers.youtrack.middlewares=youtrack-headers@file"
+
+      # ---- Service: YouTrack listens on 8080 inside the container ----
+      - "traefik.http.services.youtrack.loadbalancer.server.port=8080"
+      - "traefik.http.services.youtrack.loadbalancer.passhostheader=true"
+
+networks:
+  web:
+    name: web
+
+volumes:
+  traefik-acme:
+  youtrack-data:
+  youtrack-conf:
+  youtrack-logs:
+  youtrack-backups:

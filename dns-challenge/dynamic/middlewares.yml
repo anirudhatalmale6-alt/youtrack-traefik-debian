@@ -1,0 +1,44 @@
+# =============================================================================
+#  Dynamic configuration — middlewares & TLS options for YouTrack
+# =============================================================================
+#  Referenced from the container label:
+#     traefik.http.routers.youtrack.middlewares=youtrack-headers@file
+# =============================================================================
+
+http:
+  middlewares:
+    youtrack-headers:
+      headers:
+        # --- Forwarded headers YouTrack expects ---
+        # Traefik already sets X-Forwarded-For / -Host / -Port / -Proto on every
+        # proxied request automatically. We add X-Forwarded-Scheme (YouTrack
+        # reads it as an alias of -Proto) to satisfy the docs to the letter.
+        customRequestHeaders:
+          X-Forwarded-Scheme: "https"
+          X-Forwarded-Proto: "https"
+
+        # --- HSTS: force HTTPS for a year, including subdomains ---
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+
+        # --- X-Frame-Options must be SAMEORIGIN (NOT DENY) ---
+        # DENY breaks YouTrack's token-refresh iframe and logs users out.
+        customResponseHeaders:
+          X-Frame-Options: "SAMEORIGIN"
+
+# NOTE — things you do NOT need a middleware for with Traefik:
+#   * WebSockets (remote debugger, Whiteboards): Traefik detects the Upgrade
+#     header and tunnels ws/wss natively. No config required.
+#   * SSE live updates (/api/eventSourceBus): Traefik streams responses and does
+#     NOT buffer them by default, so live updates work out of the box. Do NOT
+#     wrap the router in a `buffering` middleware — that would break SSE.
+#   * Upload body size: Traefik imposes no request-body limit by default, so
+#     large attachments pass through. (Add a `buffering.maxRequestBodyBytes`
+#     middleware only if you deliberately want to cap upload size.)
+
+tls:
+  options:
+    default:
+      minVersion: VersionTLS12      # YouTrack requires TLS 1.2+
+      sniStrict: true
