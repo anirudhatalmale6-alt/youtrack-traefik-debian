@@ -273,7 +273,10 @@ cd dns-challenge
 
 # Fill in your values
 cp .env.example .env
-nano .env                 # set YOUTRACK_DOMAIN, NAMECHEAP_API_USER, NAMECHEAP_API_KEY, ...
+nano .env                 # set NAMECHEAP_API_USER, NAMECHEAP_API_KEY (and YOUTRACK_VERSION)
+
+# Set your public hostname on the router `rule` line
+nano dynamic/youtrack.yml     # Host(`youtrack.example.com`) -> your hostname
 
 # Set your real email in traefik.yml (the acme "email:" field)
 nano traefik.yml
@@ -320,8 +323,8 @@ reads. Optional tuning vars — `NAMECHEAP_PROPAGATION_TIMEOUT` (default 3600s),
 ### 8.4 Wildcard certificates (DNS‑01 only)
 
 DNS‑01 is the only challenge that can issue **wildcard** certs. To also cover
-`*.example.com`, uncomment the `tls.domains[...]` labels in
-`dns-challenge/docker-compose.yml` and set `ROOT_DOMAIN` in `.env`.
+`*.example.com`, uncomment the `tls.domains:` block in
+`dns-challenge/dynamic/youtrack.yml` and set your root domain there.
 
 ### 8.5 Going to production
 
@@ -353,7 +356,9 @@ Use the files in **`http-challenge/`**.
 cd http-challenge
 
 cp .env.example .env
-nano .env                 # set YOUTRACK_VERSION and YOUTRACK_DOMAIN
+nano .env                 # set YOUTRACK_VERSION
+
+nano dynamic/youtrack.yml # set your public hostname on the router `rule` line
 
 nano traefik.yml          # set your real acme email
 

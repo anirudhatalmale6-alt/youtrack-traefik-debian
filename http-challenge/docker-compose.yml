@@ -21,7 +21,7 @@ services:
       - ./traefik.yml:/etc/traefik/traefik.yml:ro
       - ./dynamic:/etc/traefik/dynamic:ro
       - traefik-acme:/etc/traefik/acme          # persists acme.json (the certs)
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Docker socket intentionally NOT mounted — router lives in ./dynamic/youtrack.yml
     networks:
       - web
 
@@ -40,21 +40,9 @@ services:
       - youtrack-backups:/opt/youtrack/backups
     networks:
       - web
-    labels:
-      - "traefik.enable=true"
-
-      # ---- Router: HTTPS on the websecure entrypoint ----
-      - "traefik.http.routers.youtrack.rule=Host(`${YOUTRACK_DOMAIN}`)"
-      - "traefik.http.routers.youtrack.entrypoints=websecure"
-      - "traefik.http.routers.youtrack.tls=true"
-      - "traefik.http.routers.youtrack.tls.certresolver=letsencrypt"
-
-      # ---- Middlewares (defined in ./dynamic/middlewares.yml) ----
-      - "traefik.http.routers.youtrack.middlewares=youtrack-headers@file"
-
-      # ---- Service: YouTrack listens on 8080 inside the container ----
-      - "traefik.http.services.youtrack.loadbalancer.server.port=8080"
-      - "traefik.http.services.youtrack.loadbalancer.passhostheader=true"
+    # No Traefik labels needed: the router and service pointing at this container
+    # (by name "youtrack" on the "web" network) live in ./dynamic/youtrack.yml.
+    # YouTrack listens on 8080 inside the container and is not published to host.
 
 networks:
   web:

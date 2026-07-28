@@ -1,8 +1,7 @@
 # =============================================================================
 #  Dynamic configuration — middlewares & TLS options for YouTrack
 # =============================================================================
-#  Referenced from the container label:
-#     traefik.http.routers.youtrack.middlewares=youtrack-headers@file
+#  Referenced from the router in youtrack.yml:  middlewares: [youtrack-headers]
 # =============================================================================
 
 http:

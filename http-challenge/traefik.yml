@@ -25,10 +25,11 @@ entryPoints:
         idleTimeout: 0
 
 # ---- Providers -------------------------------------------------------------
+# The router / service / middlewares live in plain files under `dynamic/`, so
+# Traefik never talks to the Docker socket. This avoids depending on the Docker
+# Engine API version (newer Docker Engines drop old API versions and break
+# label auto-discovery) and is more secure — the socket is never mounted.
 providers:
-  docker:
-    exposedByDefault: false
-    network: web
   file:
     directory: /etc/traefik/dynamic
     watch: true

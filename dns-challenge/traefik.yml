@@ -25,12 +25,13 @@ entryPoints:
         idleTimeout: 0
 
 # ---- Providers -------------------------------------------------------------
+# We define the router / service / middlewares in plain files (the `dynamic/`
+# folder) rather than reading Docker container labels. This means Traefik never
+# needs to talk to the Docker socket, which:
+#   * avoids depending on the Docker Engine API version (newer Docker Engines
+#     drop old API versions, which breaks Traefik's label auto-discovery), and
+#   * is more secure — the Docker socket is never mounted into Traefik.
 providers:
-  # Read router/service definitions from container labels.
-  docker:
-    exposedByDefault: false     # only containers with traefik.enable=true
-    network: web
-  # Read middlewares / tls options from files in this directory.
   file:
     directory: /etc/traefik/dynamic
     watch: true

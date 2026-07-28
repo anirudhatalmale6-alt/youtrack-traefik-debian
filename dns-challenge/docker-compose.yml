@@ -31,7 +31,8 @@ services:
       - ./traefik.yml:/etc/traefik/traefik.yml:ro
       - ./dynamic:/etc/traefik/dynamic:ro
       - traefik-acme:/etc/traefik/acme          # persists acme.json (the certs)
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # NOTE: the Docker socket is intentionally NOT mounted. The router lives in
+      # ./dynamic/youtrack.yml (file provider), so Traefik needs no Docker access.
     networks:
       - web
 
@@ -51,25 +52,10 @@ services:
       - youtrack-backups:/opt/youtrack/backups
     networks:
       - web
-    labels:
-      - "traefik.enable=true"
-
-      # ---- Router: HTTPS on the websecure entrypoint ----
-      - "traefik.http.routers.youtrack.rule=Host(`${YOUTRACK_DOMAIN}`)"
-      - "traefik.http.routers.youtrack.entrypoints=websecure"
-      - "traefik.http.routers.youtrack.tls=true"
-      - "traefik.http.routers.youtrack.tls.certresolver=namecheap"
-      # Uncomment to additionally request a wildcard SAN on the same cert:
-      # - "traefik.http.routers.youtrack.tls.domains[0].main=${YOUTRACK_DOMAIN}"
-      # - "traefik.http.routers.youtrack.tls.domains[0].sans=*.${ROOT_DOMAIN}"
-
-      # ---- Middlewares (defined in ./dynamic/middlewares.yml) ----
-      - "traefik.http.routers.youtrack.middlewares=youtrack-headers@file"
-
-      # ---- Service: YouTrack listens on 8080 inside the container ----
-      - "traefik.http.services.youtrack.loadbalancer.server.port=8080"
-      # Keep the connection to the backend on HTTP/1.1 (required for websockets/SSE)
-      - "traefik.http.services.youtrack.loadbalancer.passhostheader=true"
+    # No Traefik labels are needed: the router and service that point at this
+    # container (by its name, "youtrack", on the "web" network) are defined in
+    # ./dynamic/youtrack.yml. YouTrack listens on 8080 inside the container and
+    # is deliberately not published to the host — only Traefik reaches it.
 
 networks:
   web:

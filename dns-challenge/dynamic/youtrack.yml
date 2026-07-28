@@ -1,0 +1,34 @@
+# =============================================================================
+#  Dynamic configuration — YouTrack router + service (DNS-01 / Namecheap)
+# =============================================================================
+#  This replaces the Docker container labels. Traefik reaches the YouTrack
+#  container by its Compose name ("youtrack") on the "web" network.
+#
+#  >>> Set your real hostname on the router `rule` line below. <<<
+# =============================================================================
+
+http:
+  routers:
+    youtrack:
+      rule: "Host(`youtrack.example.com`)"      # <-- CHANGE to your hostname
+      entryPoints:
+        - websecure
+      service: youtrack
+      middlewares:
+        - youtrack-headers                       # defined in middlewares.yml
+      tls:
+        certResolver: namecheap
+        # Uncomment to additionally request a wildcard SAN on the same cert:
+        # domains:
+        #   - main: "youtrack.example.com"
+        #     sans:
+        #       - "*.example.com"
+
+  services:
+    youtrack:
+      loadBalancer:
+        passHostHeader: true
+        servers:
+          # YouTrack listens on 8080 inside its container; Traefik reaches it
+          # over the internal "web" network by the container name.
+          - url: "http://youtrack:8080"
