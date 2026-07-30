@@ -8,9 +8,12 @@ certificates issued two different ways:
    wildcards and works even when port 80 is closed to the internet.
 2. **HTTP‑01 challenge** — the simplest option when the server is publicly
    reachable on port 80.
+3. **DNS‑01 on port 8443** — same DNS‑01 (Namecheap) certificate, but YouTrack
+   is served on **`:8443`** so ports **80 and 443 stay free** for another
+   service on the same machine. Users reach it at `https://your-host:8443`.
 
-Both setups are provided as self‑contained `docker compose` stacks so you can
-stand the whole thing up with a single command.
+All three setups are provided as self‑contained `docker compose` stacks so you
+can stand the whole thing up with a single command.
 
 > **This has been proven end‑to‑end, not just written.** Both challenge types
 > were run until real certificates were issued and YouTrack loaded over HTTPS
@@ -26,8 +29,15 @@ youtrack-traefik-guide/
 │   │   ├── youtrack.yml    # router + service (set your hostname here)
 │   │   └── middlewares.yml # headers / HSTS / TLS options
 │   └── .env.example
-└── http-challenge/         # Stack #2 — Let's Encrypt via HTTP-01
-    ├── docker-compose.yml
+├── http-challenge/         # Stack #2 — Let's Encrypt via HTTP-01
+│   ├── docker-compose.yml
+│   ├── traefik.yml
+│   ├── dynamic/
+│   │   ├── youtrack.yml    # router + service (set your hostname here)
+│   │   └── middlewares.yml
+│   └── .env.example
+└── dns-challenge-port8443/ # Stack #3 — DNS-01 (Namecheap), served on :8443
+    ├── docker-compose.yml  #             (leaves ports 80 + 443 free)
     ├── traefik.yml
     ├── dynamic/
     │   ├── youtrack.yml    # router + service (set your hostname here)
@@ -49,6 +59,7 @@ youtrack-traefik-guide/
 7. [Reverse‑proxy requirements — and how Traefik satisfies them](#7-reverse-proxy-requirements--and-how-traefik-satisfies-them)
 8. [Option A — TLS via DNS‑01 challenge (Namecheap)](#8-option-a--tls-via-dns-01-challenge-namecheap)
 9. [Option B — TLS via HTTP‑01 challenge](#9-option-b--tls-via-http-01-challenge)
+9b. [Option C — DNS‑01 on port 8443 (keeps 80 + 443 free)](#9b-option-c--dns01-on-port-8443-keeps-80--443-free)
 10. [Step 5 — Complete the YouTrack setup wizard](#10-step-5--complete-the-youtrack-setup-wizard)
 11. [Verifying everything works](#11-verifying-everything-works)
 12. [Certificate renewal](#12-certificate-renewal)
@@ -276,14 +287,15 @@ cd youtrack-traefik-debian
 ```
 
 Everything from here happens inside that folder. When you reach the TLS step,
-pick **one** stack — `dns-challenge/` or `http-challenge/` — and `cd` into it,
-for example `cd /opt/youtrack-traefik-debian/dns-challenge`.
+pick **one** stack — `dns-challenge/`, `http-challenge/`, or
+`dns-challenge-port8443/` — and `cd` into it, for example
+`cd /opt/youtrack-traefik-debian/dns-challenge`.
 
 ---
 
 ## 5. Step 3 — Install YouTrack (Docker)
 
-We deploy YouTrack with Docker **Compose** together with Traefik (see the two
+We deploy YouTrack with Docker **Compose** together with Traefik (see the
 stacks below). This section explains the YouTrack half so you understand what
 the compose file is doing; you do **not** need to run these `docker run`
 commands by hand — the compose stack handles it.
@@ -320,8 +332,10 @@ declare them under the bottom `volumes:` key. Data still persists either way;
 host bind mounts just keep it visible on the machine. Note that YouTrack prints
 a harmless "non‑anonymous volume" warning with named volumes — bind mounts avoid it.)
 
-Choose **one** of the two stacks (`dns-challenge/` or `http-challenge/`) — do
-not run both at once, since they both bind ports 80/443.
+Choose **one** stack — `dns-challenge/`, `http-challenge/`, or
+`dns-challenge-port8443/` — and do not run more than one at once (the first two
+both bind ports 80/443; the third binds only 8443, so it can run *alongside*
+another service, just not alongside the other two YouTrack stacks).
 
 ---
 
@@ -536,6 +550,79 @@ docker compose up -d
 
 ---
 
+## 9b. Option C — DNS‑01 on port 8443 (keeps 80 + 443 free)
+
+Use the files in **`dns-challenge-port8443/`**.
+
+Use this option when **another service already uses ports 80 and 443** on the
+same machine and you want YouTrack alongside it. YouTrack is served on **`:8443`**
+only; nothing in this stack touches port 80 or 443. Because the certificate is
+obtained via the **DNS‑01 challenge** (Namecheap), Let's Encrypt validates over
+DNS and never needs port 80 — so leaving 80/443 to the other service is safe.
+
+Users reach YouTrack at **`https://youtrack.example.com:8443`** (note the port).
+
+### 9b.1 Requirements
+
+* Namecheap API access enabled and this server's IP whitelisted — exactly the
+  same as [Option A](#8-option-a--tls-via-dns-01-challenge-namecheap) (see §8.1).
+* An `A` record for your hostname pointing at this server.
+* **Open port 8443** in the firewall (`sudo ufw allow 8443/tcp`). Ports 80/443
+  are left alone for the other service.
+
+### 9b.2 What is different from Option A
+
+Only two things change from the normal DNS‑01 stack:
+
+* **`traefik.yml`** defines a single entry point `websecure8443` on `:8443`
+  (there is no `:80` entry point and no http→https redirect, because we must not
+  touch port 80).
+* **`docker-compose.yml`** publishes only `8443:8443` (not 80 or 443).
+
+Everything else — the Namecheap resolver, the headers/HSTS middleware, the
+bind‑mounted `/opt/youtrack` data dirs, the 60s graceful shutdown — is identical.
+
+### 9b.3 Configure and launch
+
+```bash
+cd dns-challenge-port8443
+
+cp .env.example .env
+nano .env                 # set YOUTRACK_VERSION + your NAMECHEAP_API_USER / _KEY
+
+nano dynamic/youtrack.yml # set your public hostname on the router `rule` line
+
+nano traefik.yml          # set your real acme email
+
+# Set the YouTrack base URL — it MUST include :8443 for this option
+docker compose run --rm --no-deps youtrack \
+  configure --base-url=https://youtrack.example.com:8443
+
+docker compose up -d
+docker compose logs -f traefik   # watch it obtain the cert over DNS-01
+```
+
+When you see `Server responded with a certificate  domains=youtrack.example.com`,
+open `https://youtrack.example.com:8443` in a browser.
+
+> **Base URL must include the port.** If you set the base‑url without `:8443`,
+> YouTrack builds links to `:443` and the UI/links break. Always use
+> `https://youtrack.example.com:8443` for this option.
+
+### 9b.4 Going to production
+
+Same as Option A — start on staging, then switch `caServer` to production and
+recreate with a fresh `acme.json`:
+
+```bash
+# in traefik.yml, comment the staging caServer line and uncomment the prod one
+docker compose down
+docker volume rm dns-challenge-port8443_traefik-acme   # discard the staging cert
+docker compose up -d
+```
+
+---
+
 ## 10. Step 5 — Complete the YouTrack setup wizard
 
 On first launch YouTrack prints a one‑time wizard token in its log:
@@ -659,6 +746,10 @@ docker compose exec traefik cat /etc/traefik/acme/acme.json | head   # stored ce
   and you only need a cert for the exact hostname.
 * Choose **DNS‑01 (Namecheap)** if port 80 is closed/filtered, the server is
   behind a CDN, or you want a wildcard certificate.
+* Choose **Option C — DNS‑01 on port 8443** (`dns-challenge-port8443/`) if
+  **another service already uses ports 80 and 443** on this machine and you want
+  YouTrack served alongside it on `:8443`. It's the DNS‑01 setup with a single
+  `:8443` entry point — see [§9b](#9b-option-c--dns01-on-port-8443-keeps-80--443-free).
 
 ---
 

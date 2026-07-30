@@ -125,6 +125,49 @@ X509v3 Subject Alternative Name: critical
     DNS:dns.yt.test
 ```
 
+### 2a. DNS‑01 on :8443 (Option C) — verified on the shipped `dns-challenge-port8443/` stack
+
+The `dns-challenge-port8443/` stack (YouTrack on `:8443`, ports 80 and 443 left
+free) was run as‑shipped on **Traefik v3.7.9** (only the `caServer` pointed at
+the local Pebble test CA, and the Namecheap provider swapped for the same tiny
+`exec` DNS hook used in §2). The DNS‑01 challenge issued a certificate on the
+single `:8443` entry point:
+
+```
+# challtestsrv — TXT provisioned then removed by the DNS-01 hook
+Added   TXT response for Host "_acme-challenge.dns.yt.test." - Value "trsK2bO1ZIReuqu64534K9NssWlBW_17Q4hn7nuSyYY"
+Removed TXT response for Host "_acme-challenge.dns.yt.test."
+# Traefik
+Use solver.  domain=dns.yt.test type=dns-01
+Server responded with a certificate.  domains=dns.yt.test
+```
+
+The two things that make this variant different were both confirmed against the
+running stack — the certificate is served on **:8443**, and **nothing binds 80 or
+443**:
+
+```
+# 1) the stack publishes ONLY 8443 (podman port) — 80 and 443 stay free
+$ podman port traefik
+8443/tcp -> 0.0.0.0:8443
+
+# 2) the issued cert is served on :8443 (SNI dns.yt.test)
+$ openssl s_client -connect 127.0.0.1:8443 -servername dns.yt.test | openssl x509 ...
+issuer=CN = Pebble Intermediate CA
+X509v3 Subject Alternative Name: critical
+    DNS:dns.yt.test
+
+# 3) HTTPS on :8443 proxies through to YouTrack with the same headers
+$ curl -k --resolve dns.yt.test:8443:127.0.0.1 -I https://dns.yt.test:8443/
+HTTP/2 200
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+x-frame-options: SAMEORIGIN
+```
+
+So `dns-challenge-port8443/` issues a real certificate over DNS‑01, serves
+YouTrack on `:8443`, and leaves ports 80 and 443 untouched — exactly as intended
+for running YouTrack next to another service on the same machine.
+
 ---
 
 ## 3. Traefik actually serves those certs over TLS

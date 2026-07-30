@@ -1,0 +1,64 @@
+# =============================================================================
+#  Traefik v3 static configuration
+#  DNS-01 (Namecheap) resolver  —  YouTrack served on :8443 ONLY
+# =============================================================================
+#  This variant leaves ports 80 and 443 completely FREE for another service.
+#  Traefik listens on a single HTTPS entry point, :8443, and nothing else.
+#  Because the certificate is obtained via the DNS-01 challenge, Let's Encrypt
+#  never needs to reach this server on :80 — so we don't have to bind :80 at all.
+#
+#  Users reach YouTrack at:  https://youtrack.example.com:8443
+# =============================================================================
+
+# ---- Entry points ----------------------------------------------------------
+# Only ONE entry point. We deliberately do NOT define a :80 "web" entry point,
+# so ports 80 and 443 stay available for whatever else runs on this machine.
+entryPoints:
+  websecure8443:
+    address: ":8443"
+    http:
+      tls: {}
+    # Long-lived Server-Sent-Events (YouTrack live updates) must not be cut off.
+    transport:
+      respondingTimeouts:
+        readTimeout: 0          # 0 = no limit; SSE streams stay open
+        idleTimeout: 0
+
+# ---- Providers -------------------------------------------------------------
+# The router / service / middlewares are defined in plain files (the `dynamic/`
+# folder) rather than read from Docker container labels. Traefik never needs to
+# talk to the Docker socket, which avoids the Docker Engine API-version problem
+# (newer engines drop old API versions and break label auto-discovery) and is
+# more secure (the socket is never mounted into Traefik).
+providers:
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+# ---- Certificate resolver: Let's Encrypt via DNS-01 (Namecheap) ------------
+certificatesResolvers:
+  namecheap:
+    acme:
+      email: "admin@example.com"          # <-- change to a real address
+      storage: /etc/traefik/acme/acme.json
+      # Start against STAGING to avoid rate limits while testing, then switch
+      # to production by commenting the line below out.
+      caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+      # PRODUCTION endpoint (uncomment once staging issues a cert cleanly):
+      # caServer: https://acme-v02.api.letsencrypt.org/directory
+      dnsChallenge:
+        provider: namecheap
+        # Query authoritative/public resolvers directly so Traefik sees the TXT
+        # record as soon as it propagates, instead of trusting a cached local DNS.
+        resolvers:
+          - "1.1.1.1:53"
+          - "8.8.8.8:53"
+        propagation:
+          delayBeforeChecks: 0
+
+# ---- Logging / dashboard (optional, handy while setting up) -----------------
+log:
+  level: INFO
+api:
+  dashboard: true
+  insecure: false             # keep the dashboard off the public internet
